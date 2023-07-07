@@ -19,6 +19,38 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.MapPost("/shorturl", async (UrlDto url, AppDbContext db, HttpContext ctx) =>
+{
+    // Validating input url
+    if (!Uri.TryCreate(url.Url, UriKind.Absolute, out var inputUrl))
+        return Results.BadRequest(error: "Invalid url has been provided");
+
+    // Creating a short version of the provided url
+    var random = new Random();
+    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@az";
+    var shortUrl = new string(Enumerable.Repeat(chars, 6)
+        .Select(s => s[random.Next(s.Length)]).ToArray());
+
+    // Mapping the short with the long url
+    var urlShort = new UrlShort
+    {
+        Url = url.Url,
+        ShortUrl = shortUrl
+    };
+
+    // Saving the mapping to the database
+    await db.Urls.AddAsync(urlShort);
+    await db.SaveChangesAsync();
+
+    // returning the short url
+    var result = $"{ctx.Request.Scheme}://{ctx.Request.Host}/{shortUrl}";
+
+    return Results.Ok(new UrlShortResponseDto()
+    {
+        Url = result,
+    });
+});
+
 app.Run();
 
 class AppDbContext : DbContext
